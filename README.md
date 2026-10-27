@@ -133,9 +133,8 @@ Same source (2744e48d1), same model, same flags, built both ways on the Z820 its
 | native (`-march=native`, built on the E5-2665) | 8.74 / 8.83 t/s | ~25 t/s |
 
 Parity within run-to-run spread. Repeated on the curated weights: floor **7.56 ± 0.03** (t=24) / 7.25 ± 0.10 (t=16)
-vs native **7.63 ± 0.05** t/s — ~1% apart. The full detached harness run (`results/run.log`, 15:52) measured
-floor **7.38 ± 0.02** vs native **7.43 ± 0.05** back to back in one pass: **0.7%**, which is the run-to-run spread
-itself. Three independent passes of the same arms now agree within ~3-6%, so the floor is confirmed free. The two targets differ only in `-maes` (AES-NI), which no inference kernel
+vs native **7.63 ± 0.05** t/s — ~1% apart. One detached harness pass measured the two back to back:
+floor **7.38 ± 0.02** vs native **7.43 ± 0.05**: **0.7%**, which is the run-to-run spread itself. Three independent passes of the same arms now agree within ~3-6%, so the floor is confirmed free. The two targets differ only in `-maes` (AES-NI), which no inference kernel
 uses, so the cross-built floor is not leaving AVX1 performance on the table and OldIron-AVX can be built anywhere.
 
 (An A/B against the fleet's older `ik_llama-sb-avx1` floor build could not be run: its `llama-cli` exits
