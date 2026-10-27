@@ -1,6 +1,18 @@
-OldIron builds on llama.cpp (https://github.com/ggml-org/llama.cpp), MIT licensed,
-pinned at commit 2744e48d1 (build 816, 0.7.0-dev). The engine is not redistributed here;
-clone that commit and apply the build described in README.md.
+Licensing
+---------
+OldIron is free software: you can redistribute it and/or modify it under the terms of the
+GNU General Public License as published by the Free Software Foundation, either version 3 of
+the License, or (at your option) any later version. See LICENSE.
+
+Copyright (c) 2026 Dirigo Agents LLC
+
+Third-party components
+----------------------
+This repository builds on llama.cpp (https://github.com/ggml-org/llama.cpp), which is MIT
+licensed, pinned at commit 2744e48d1 (build 816, 0.7.0-dev). The engine source is not
+redistributed here: clone that commit upstream and apply the build described in README.md.
+llama.cpp remains under its own MIT terms; MIT is compatible with the GPL, and nothing in
+this repository relicenses it.
 
 GGUF quantisation formats come from ggml/llama.cpp, MIT licensed.
 

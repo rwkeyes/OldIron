@@ -207,6 +207,11 @@ scripts/   build (AVX1 floor + sm_86;120), ISA audit, staging, weight transfer, 
 results/   the measured runs
 ```
 
+## License
+
+GPL-3.0-or-later. See `LICENSE`; the copyright notice and the third-party terms (llama.cpp is MIT and stays MIT)
+are in `NOTICE`.
+
 ## Layout
 
 ```
