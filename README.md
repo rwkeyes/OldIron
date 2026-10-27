@@ -6,31 +6,72 @@ is allowed to be slower than that floor needs.
 
 | variant | lowest supported CPU | lowest supported GPU | status |
 |---|---|---|---|
-| **OldIron-AVX** | Xeon E5-2665 (Sandy Bridge-EP, **AVX1**: no AVX2/FMA/F16C/BMI2) | RTX 3060 8 GB (**sm_86**) | built, staged, **measured on z820a + z820b**; kernel work in progress |
+| **OldIron-AVX** | Xeon E5-2665 (Sandy Bridge-EP, **AVX1**: no AVX2/FMA/F16C/BMI2) | RTX 3060 8 GB (**sm_86**) | built, staged, **measured on z820a + z820b**; CPU kernel work finished (+13.5% at fixed format, +6.4% net) |
 | OldIron-Core2 (planned) | SSE4.1/SSSE3 (2007) | none | not started |
 
 ## Results, plainly
 
-**The gains are modest, and worth having.** Nothing here is a 2x, and anyone claiming one on AVX1 hardware is
-measuring something else.
+**One measured step, and no more.** The AVX1 kernel work shipped and it is worth **+13.5% at fixed format and
++6.4% net** (7.45 → 7.86-7.93 t/s). Every other CPU-lane lever was measured and rejected. The "~3x" projection in
+the first version of this README **did not survive the engine tests and is retracted below** — the large multiple
+on this hardware is on the GPU lane, not in the matvec.
 
-Measured on z820a (2x Xeon E5-2665, 32 GB DDR3, RTX 5060 Ti), 35B-A3B weights, coherent output throughout:
+All numbers measured on z820a (2× Xeon E5-2665, 32 GB DDR3, RTX 5060 Ti), curated 35B-A3B weights, coherent output
+throughout, `nice -n 19`, box verified idle between arms.
+
+### CPU lane — shipped state
 
 | what | measured | note |
 |---|---|---|
-| CPU decode, stock engine | **7.45 +/- 0.04 t/s** | IQ3_S 3.66 bpw, `-ngl 0 --no-op-offload -t 24` |
-| CPU decode, **patched Q4_0 kernel** | **7.93 +/- 0.02 t/s** | same arm, Q4_0 4.50 bpw; **+13.5 %** over stock Q4_0 (6.99 +/- 0.47) |
-| W1 GEMV kernel alone | **4.4 GMAC/s/core** from DRAM; 8.9 / 18.1 L1-resident (1 / 2 rows) | exact-integer vs the scalar reference, AVX1-clean |
-| NUMA interleave, one flag | **+59 %**: 44.4 -> 70.8 GMAC/s, 27.8 -> 44.2 GB/s | measured, not yet integrated |
-| projection when W3 lands | **~20-24 t/s**, about 3x today | at the measured kernel rate |
+| stock engine, IQ3_S 3.66 bpw | **7.45 ± 0.04 t/s** | `-ngl 0 --no-op-offload -t 24`, the best prior config |
+| stock engine, Q4_0 4.50 bpw | 6.99 ± 0.47 t/s | the wider format is *slower* on stock kernels (23% more bytes) |
+| **shipped W3 AVX1 kernel, Q4_0** | **7.86 ± 0.08 t/s** (bench) · 7.93 ± 0.02 (harness) | **+13.5% vs stock Q4_0, +6.4% net over stock IQ3_S**; coherent |
+| prefill pp128 / pp512 / pp4096 | 29.70 / 29.9 / 28.0 t/s | 8× the context costs 6% per token |
+| W1 GEMV kernel alone | 4.4 GMAC/s/core from DRAM; 8.9 / 18.1 L1-resident (1 / 2 rows) | exact-integer vs the scalar reference, AVX1-clean |
+| gcc vs clang 18 vs icx 2026 | gcc best; clang −9%, icx −15.5% | compiler lever closed |
 
-Why it is still worth doing: the CPU lane moves **11.96 GB/s, just 16 % of this box's 74.9 GB/s**, so the limiter
-is the quantised matvec, not memory and not the AVX1 build itself - a `-march=native` build measures **0.7 %**
-apart, which is the run-to-run spread. The headroom is measurable, and the kernel that captures it already exists.
+The trade the kernel buys: the Q4_0 weight file is ~19 GiB against 15.7 GiB for IQ3_S. It still fits a 32 GB box,
+but it is a size regression in exchange for the speed.
 
-What it does **not** buy: the patched Q4_0 arm still does not overtake the narrower IQ3_S (7.93 vs 7.45 t/s) - it
-wins back most of the cost of a wider format, nothing more. The GPU and 8 GB lanes are untouched by this kernel
-work; they are VRAM-bound, not AVX1-bound.
+### Retractions — what this README claimed, and what the tests returned
+
+| claim in the first version | measured result |
+|---|---|
+| "projection when W3 lands ~20-24 t/s, about 3x today" | **retracted.** W3 landed and bought 13.5% at fixed format. The engine moves ~28 GB/s where the pure kernel reaches 44 GB/s, so closing that gap entirely is **~1.35× end-to-end** on a 77% matvec share — not 3×. The kernel path is close to exhausted |
+| "NUMA interleave, one flag, +59%" | **0% in the engine** — 3.13 vs 3.13 t/s, two interleaved rounds, on a copy materialised under the interleave policy. `numastat` also shows the page cache already split 50/50 across nodes. The +59% was a 64 MB streaming microbenchmark; the engine's matvec is not purely bandwidth-bound, so it did not transfer |
+| "11.96 GB/s = 16% of the 74.9 GB/s ceiling, so 3-5× headroom" | the 74.9 GB/s figure is a **sequential** streaming measurement that this access pattern never reaches. Like-for-like the engine is at 28 GB/s against the kernel's 44 GB/s — 1.6×, worth ~1.35× end-to-end |
+| lm_head Q6_K → Q4_0 (417 MB/token on the old path) | **0%** — 7.83 vs 7.93 t/s, inside noise |
+
+### Also measured and rejected (detail in [`kernels/RESULTS.md`](kernels/RESULTS.md))
+
+- **hoisted-correction GEMM: −40% in situ** (7.93 → 4.67 t/s) despite +113% on the isolated matrix — the engine
+  makes ~1.9M small `vec_dot` calls per token, so the per-call precompute is never amortised. Reverted.
+- **4-row GEMM batching:** inseparable from the hoist that broke it; not shipped.
+- **speculative decoding:** 7.3 → 6.8 t/s (**−7%**) with a 0.8B draft on this thinking-heavy output.
+- **NUMA chunk granularity** (dropping the `ggml_is_numa()` term): prefill flat, **decode −7%**. Reverted.
+- **K-quant tiled GEMM instead of Q4_0 + `vec_dot`:** the tiled path is **44% slower at prefill** on AVX1
+  (19.00/15.74 t/s vs 29.9/28.0), because it compiles its generic path without AVX2/VNNI. Q4_0 + the W3 kernel
+  wins on decode *and* prefill.
+- **CONCAT "10% of prefill":** a profiler artifact — it was the previous node's barrier wait. Parallelising the
+  copy changed nothing (pp512 29.97 → 29.92).
+- **Prefill ceiling:** pp512 is ~2.5 TMAC at 29.9 t/s ≈ 145 GMAC/s against the measured 170 GMAC/s int8 floor,
+  i.e. **85-90%**, not the 52% an earlier active-parameter estimate assumed.
+
+### Where the multiple actually is: the GPU lane
+
+The CPU lane is at its ISA ceiling. The 16 GB card is not. Best long-context split on the curated weights,
+measured at a real 32k context with a 140 KB prompt (not `llama-bench`'s short context):
+
+| config | prompt | generation | peak VRAM |
+|---|---|---|---|
+| **`-ngl 99 -ncmoe 10 -t 24 -c 32768`, f16 KV** | **832.9 t/s** | **52.5 t/s** | 15339 MiB |
+| same + KV q8_0 | 839.2 | 48.3 (−8%) | 15339 MiB |
+| `-ncmoe 12 -t 24` | 731.7 | 51.6 | 14465 MiB (1.4 GB spare) |
+| CPU only (fallback) | 29.9 | 7.86 | — |
+
+**6.7× the CPU lane's decode and 29× its prefill.** Only 508 MiB spare at `-ncmoe 10`, so 32k is the ceiling with
+this split; `-ncmoe 12` costs 2% and holds 1.4 GB of headroom. KV quantisation is a net loss here — the hybrid
+DeltaNet KV is ~12 KB/token, so q8 mostly adds dequant work.
 
 ## What OldIron-AVX is
 
@@ -88,8 +129,9 @@ bits fits a 32 GB box with ~15 GB to spare for a long-context KV cache (20 KB/to
 | lane | config | decode | prefill | peak VRAM | verdict |
 |---|---|---|---|---|---|
 | A — CPU only | `-ngl 0 -nopo 1 -t 16` | 7.25 ± 0.10 t/s | 28.8 t/s (pp128) | — | works, kernel-bound |
-| A — CPU only | `-ngl 0 -nopo 1 -t 24` | **7.56 ± 0.03 t/s** | 28.5 t/s | — | best CPU arm |
-| B — 5060 Ti maximised | `-ngl 99 -ncmoe 4` | **73.3 ± 1.0 t/s** | **763.7 t/s** (pp512) | 14797 MiB | best GPU arm |
+| A — CPU only | `-ngl 0 -nopo 1 -t 24` | **7.56 ± 0.03 t/s** | 28.5 t/s | — | best CPU arm on stock kernels |
+| A — CPU, shipped kernel | Q4_0 + W3, `-t 24` | **7.86 ± 0.08 t/s** | 29.70 t/s (pp128) | — | what actually ships |
+| B — 5060 Ti maximised | `-ngl 99 -ncmoe 4` | **73.3 ± 1.0 t/s** | **763.7 t/s** (pp512) | 14797 MiB | best short-context GPU arm |
 | B — | `-ngl 99 -ncmoe 8` | 50.8 t/s | — | 13345 MiB | |
 | C — 3060 8 GB, tight | `-ncmoe 24` | 29.7 t/s | — | 7739 MiB | fits, ~450 MiB margin |
 | **C — 3060 8 GB, safe** | **`-ncmoe 32`** | **23.8 t/s** | 63.9 t/s | **4905 MiB** | **recommended: 3 GB headroom for context** |
@@ -98,9 +140,11 @@ bits fits a 32 GB box with ~15 GB to spare for a long-context KV cache (20 KB/to
 
 **"GPU full" does not exist for this weight set on a 16 GB card.** 15.73 GiB of weights + KV + context will not fit
 15.8 GiB of VRAM, so the GPU lane is *always* hybrid here: `-ncmoe 4` on a 16 GB card, `-ncmoe 32` on an 8 GB card.
+For long context the split that matters is in *Results, plainly* above (`-ncmoe 10`, 52.5 t/s at 32k).
 
-CPU lane effective throughput: ~1.54 GB/token (3B active + the 248k-vocab lm_head) ÷ 132 ms ≈ **11.7 GB/s, i.e. 16%
-of the 74.9 GB/s this box can deliver.** That is the gap the custom AVX1 kernels are for — it is not memory.
+CPU lane effective throughput: ~1.54 GB/token (3B active + the 248k-vocab lm_head) ÷ 132 ms ≈ **11.7 GB/s.** That
+is against the **44 GB/s** the pure kernel reaches on this access pattern, not against the box's 74.9 GB/s
+sequential streaming figure — see the retractions above for why the difference matters.
 
 ### Earlier proxy run (kept for comparison)
 
@@ -142,8 +186,8 @@ uses, so the cross-built floor is not leaving AVX1 performance on the table and 
 the same-commit native comparison exists.)
 
 CPU lane effective weight throughput on that run: 3.6B active × 4.85 bits ≈ 2.18 GB/token ÷ 125 ms ≈
-**17.5 GB/s, i.e. 23% of the measured 74.9 GB/s DRAM ceiling.** That gap is the kernel headroom this project exists
-to capture; it is not a memory limitation.
+**17.5 GB/s.** Measured at 8 / 16 threads the engine moves 24 / **28 GB/s**, against 44 GB/s for the pure kernel on
+a sequential 64 MB matrix — within 1.6×, which is the honest size of the kernel headroom.
 
 ### Open item: `-fitt` is not a safe VRAM cap
 
@@ -175,13 +219,20 @@ the only thing that changed the token rate was the weight file.
   without root on both Z820s (`scripts/install-tmux-noroot.sh`: `apt-get download` + `dpkg -x` into `~/tmux-local`,
   wrapper at `~/bin/tmux`); vega has it from apt.
 - **Under tmux the CLI gets a pty and enters its interactive REPL** after the first turn, hanging until the timeout
-  instead of exiting. Every non-interactive CLI arm needs `< /dev/null`.
+  instead of exiting. Every non-interactive CLI arm needs `< /dev/null`. `llama-cli` also writes a **0-byte log**
+  under a tmux pty; capture CLI output over a plain ssh pipe (`llama-bench` is fine under tmux).
 - **Never point `cuobjdump` at a symlink and its target together**: given `libggml-cuda.so libggml-cuda.so.0
   libggml-cuda.so.0.27.0` it prints a bogus mixed summary (`sm_50…sm_101`, 1–2 each) that looks like arch
   contamination. On one `readlink -f` path it reports the truth: 145 `sm_120` + 145 `sm_86`.
 - **Coherence capture belongs on non-interactive ssh**, not the tmux arm: under the pty the answer text is not
   captured even with stdin closed, so the gate is run over plain ssh where it has produced the correct answer
   repeatedly.
+- **Confirm the box is idle between arms** — a stale `llama-bench` survived an ssh timeout and competed with three
+  subsequent measurements for 23 minutes (one produced a nonsense 1.31 t/s).
+- **CMake does not rebuild on a compile-definition change** — flipping `GGML_CPU_REPACK` rewrote `flags.make` and
+  left every object in place, producing a fake "repack off" result. Delete the target's `*.o` and touch the sources.
+- **Never quote a rate from a profiled run** — `OLDIRON_OPPROF=1` costs ~1.6x (19.0 s of op time for 96 tokens vs
+  12.3 s), so a profiler run and a clean run are not comparable.
 
 ## Acceptance gates (a fast wrong answer is a fail)
 
