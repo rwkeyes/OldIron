@@ -1,0 +1,8 @@
+OldIron builds on llama.cpp (https://github.com/ggml-org/llama.cpp), MIT licensed,
+pinned at commit 2744e48d1 (build 816, 0.7.0-dev). The engine is not redistributed here;
+clone that commit and apply the build described in README.md.
+
+GGUF quantisation formats come from ggml/llama.cpp, MIT licensed.
+
+Weights are not redistributed: Qwen3.6-35B-A3B and gpt-oss-20b are third-party downloads
+under their own terms.

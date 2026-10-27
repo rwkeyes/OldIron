@@ -1,0 +1,10 @@
+=== 1. materialise an interleaved copy (one-off, this is the expensive step) ===
+-rw-r--r-- 1 bob bob 9001753984 Oct 25 19:01 /home/bob/models/Qwen3-14B-Q4_K_M-il.gguf
+=== 2. A/B on the engine: default placement vs interleaved copy (same file contents) ===
+  round 1 default      3.13 ± 0.00
+  round 1 interleaved  3.13 ± 0.00
+  round 2 default      3.13 ± 0.00
+  round 2 interleaved  3.15 ± 0.00
+=== 3. what the pages actually look like (numastat for the bench's mmap) ===
+MemFree                   433.86          491.00          924.86
+FilePages               13241.26        13292.53        26533.79

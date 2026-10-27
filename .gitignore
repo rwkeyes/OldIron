@@ -1,0 +1,10 @@
+build/
+stage/
+drafts/
+.cache/
+src/
+*.gguf
+*.log.*
+kernels/g_*
+kernels/k_*
+kernels/gemm_*
