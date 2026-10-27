@@ -1,7 +1,7 @@
 #!/bin/bash
-# Push the curated weights to another host over the slow wifi link, 4 parallel streams.
+# Push the weight file to another host over the slow wifi link, 4 parallel streams.
 # Per-stream throughput is TCP-window limited here (~6 MB/s), so parallelism is what helps.
-#   HOST=z820b-bob DSTDIR=/home/bob/OldIron/weights ./push-weights.sh
+#   HOST=<ssh-alias> DSTDIR=/home/bob/OldIron/weights ./push-weights.sh
 set -uo pipefail
 HOST=${HOST:?set HOST}
 DSTDIR=${DSTDIR:?set DSTDIR}

@@ -1,6 +1,6 @@
 # OldIron kernel waypoints (AVX1 / Z820)
 
-Engine baseline today (measured, z820a, curated 35B-A3B IQ3_S): **7.45 t/s CPU decode**, which is
+Engine baseline today (measured, HP Z820, 35B-A3B IQ3_S): **7.45 t/s CPU decode**, which is
 **11.96 GB/s of weight traffic = 16% of the box's 74.9 GB/s** — and 22.5 GMAC/s aggregate, i.e.
 **~1.4 GMAC/s per core**. Neither the memory wall (46.7 t/s) nor the compute wall is being reached: the
 engine's quantised matvec is the limiter.
@@ -104,11 +104,11 @@ the *kernel* is, and two of the three biggest matvecs are still running on unpat
 | **gcc 13.3.0** | 8.93 | **18.15 / 17.92 GMAC/s** |
 | clang 18.1.3 | 8.93 | 16.52 / 16.36 (−9%) |
 | Intel icx 2026.2 | 7.74 | 15.33 / 15.19 (−15.5%) |
-| gcc `-O2` / `-O3 -funroll-loops` | same | 70.2 / 69.5 GMAC/s *on vega's Zen4* — i.e. flag choice is worth <1% |
+| gcc `-O2` / `-O3 -funroll-loops` | same | 70.2 / 69.5 GMAC/s *on a Zen4 host* — i.e. flag choice is worth <1% |
 
 **gcc is the right compiler and is already in use.** The two LLVM back ends unroll harder and lose on a 16-register
-ISA where the 2-row loop is register-starved. clang also has no `libomp` on z820a (needs `-fopenmp=libgomp`), and
-icx exists only on vega. Compiler lever: closed — the alternatives are 0 to −15%, never better.
+ISA where the 2-row loop is register-starved. clang also has no `libomp` on the Z820 (needs `-fopenmp=libgomp`), and
+icx exists only on the build host. Compiler lever: closed — the alternatives are 0 to −15%, never better.
 
 ## NUMA: +6% in the engine, but not reachable
 
@@ -166,7 +166,7 @@ bytes of work per token*, not from making the matvec faster:
 
 ## Speculative decoding: net loss on this box (7.3 -> 6.8 t/s)
 
-Draft = Qwen3.5-0.8B Q4_K_M (532 MB, same 248k vocab family as the target), target = curated Qwen3.6-35B-A3B,
+Draft = Qwen3.5-0.8B Q4_K_M (532 MB, same 248k vocab family as the target), target = Qwen3.6-35B-A3B,
 same prompt, temp 0, t=24, `-n 32`:
 
 | arm | generation |
@@ -309,7 +309,7 @@ Raising chunk granularity by dropping the `ggml_is_numa()` term made prefill unc
 Capturing that last 10% needs a flattened (expert, row-chunk) work queue, i.e. a real scheduling rewrite in
 `mul_mat_id`, with a ceiling of ~10% and no guarantee. Not attempted.
 
-## Final shipped state (z820a, 24 threads, curated weights)
+## Final shipped state (HP Z820, 24 threads, 35B weights)
 
 | test | value |
 |---|---|
@@ -323,10 +323,10 @@ requantisation (0%), alternate compilers (-9%/-15.5%), NUMA chunking (-7% decode
 85-90% of the measured int8 ceiling, so the platform's compute headroom is genuinely near spent.
 
 
-## Best configuration for long context on z820a (GPU + CPU split)
+## Best configuration for long context on the HP Z820 (GPU + CPU split)
 
 The CPU lane is at its ISA ceiling; the 16 GB card is not. Sweeping `-ncmoe` (MoE layers kept on the CPU),
-all at `-t 24`, curated Q4_0-otq4 weights:
+all at `-t 24`, Q4_0 re-quant weights:
 
 | -ncmoe | pp4096 (bench) | tg48 (short ctx) | peak VRAM @32k ctx | verdict |
 |---|---|---|---|---|

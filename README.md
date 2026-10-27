@@ -1,12 +1,13 @@
 # OldIron
 
-A frozen combination of **inference engine + curated weights**, built for hardware that current engines have
+An inference engine plus **one named weight file**, built for hardware that current engines have
 written off. OldIron is a product line: each variant names the *lowest* machine it must serve, and nothing in it
-is allowed to be slower than that floor needs.
+is allowed to be slower than that floor needs. The weights are third-party and are not shipped here — see
+*The weights* below.
 
 | variant | lowest supported CPU | lowest supported GPU | status |
 |---|---|---|---|
-| **OldIron-AVX** | Xeon E5-2665 (Sandy Bridge-EP, **AVX1**: no AVX2/FMA/F16C/BMI2) | RTX 3060 8 GB (**sm_86**) | built, staged, **measured on z820a + z820b**; CPU kernel work finished (+13.5% at fixed format, +6.4% net) |
+| **OldIron-AVX** | Xeon E5-2665 (Sandy Bridge-EP, **AVX1**: no AVX2/FMA/F16C/BMI2) | RTX 3060 8 GB (**sm_86**) | built, staged, **measured on two HP Z820s**; CPU kernel work finished (+13.5% at fixed format, +6.4% net) |
 | OldIron-Core2 (planned) | SSE4.1/SSSE3 (2007) | none | not started |
 
 ## Results, plainly
@@ -16,8 +17,8 @@ is allowed to be slower than that floor needs.
 the first version of this README **did not survive the engine tests and is retracted below** — the large multiple
 on this hardware is on the GPU lane, not in the matvec.
 
-All numbers measured on z820a (2× Xeon E5-2665, 32 GB DDR3, RTX 5060 Ti), curated 35B-A3B weights, coherent output
-throughout, `nice -n 19`, box verified idle between arms.
+All numbers measured on an HP Z820 (2× Xeon E5-2665, 32 GB DDR3, RTX 5060 Ti) with the 35B-A3B weight file named in
+each run, coherent output throughout, `nice -n 19`, box verified idle between arms.
 
 ### CPU lane — shipped state
 
@@ -59,8 +60,8 @@ but it is a size regression in exchange for the speed.
 
 ### Where the multiple actually is: the GPU lane
 
-The CPU lane is at its ISA ceiling. The 16 GB card is not. Best long-context split on the curated weights,
-measured at a real 32k context with a 140 KB prompt (not `llama-bench`'s short context):
+The CPU lane is at its ISA ceiling. The 16 GB card is not. Best long-context split on the 35B weights, measured at
+a real 32k context with a 140 KB prompt (not `llama-bench`'s short context):
 
 | config | prompt | generation | peak VRAM |
 |---|---|---|---|
@@ -111,19 +112,26 @@ VERDICT: AVX1-clean and using 256-bit width
 mnemonics (`vpermd`, `vpermq`, `vpbroadcast[dwq]`, `vpsllvd`, `vpgather*`, `vpblendd`) and (b) **integer-vector ops
 on `%ymm`** — AVX1 has no 256-bit integer arithmetic at all. `vmovdqa/vmovdqu` on `%ymm` are AVX1-legitimate.
 
-### Curated weights
+### The weights: third-party, and not shipped
 
-`Qwen3.6-35B-A3B-IQ3_M.gguf` — 16.9 GB, 3.52 bits/weight, arch `qwen35moe`
-(35B total, 3B active, 256 experts / 8 routed + 1 shared, 40 layers, 3:1 Gated DeltaNet : full attention,
-262k context, 248320 vocab, MTP-trained).
+`Qwen3.6-35B-A3B` in GGUF — 35B total / 3B active, arch `qwen35moe` (256 experts, 8 routed + 1 shared, 40 layers,
+3:1 Gated DeltaNet : full attention, 262k context, 248320 vocab, MTP-trained). Three files appear in these
+measurements: the stock `Qwen3.6-35B-A3B-IQ3_M.gguf` (**16.9 GB, 3.52 bits per weight**), an `IQ3_S` mix
+(3.66 bpw, 15.73 GiB) used for the lane matrix, and a `Q4_0` re-quant of the same model (4.50 bpw, ~19 GiB)
+written only to A/B the AVX1 kernel.
 
-Why this one: decode speed is set by *active* parameters and RAM is the scarce resource, so a 35B/3B MoE at 3.5
-bits fits a 32 GB box with ~15 GB to spare for a long-context KV cache (20 KB/token → 32k ctx ≈ 0.67 GB), where a
-27B dense at a higher quant would be ~7× slower for less quality headroom.
+**These weights are not ours, and this project does not include them.** They are third-party GGUF files of a public
+model, downloaded and checksum-verified in transit; the `Q4_0` copy is a local re-quant of the same model and is a
+test artefact, not a product. What is published here is engine source, kernel source, scripts and measurements — no
+weight file is redistributed, and no weight file is claimed as part of the deliverable.
 
-## Measured: curated weights on z820a (2× E5-2665, 16 cores, RTX 5060 Ti)
+Why this shape of model: decode speed is set by *active* parameters and RAM is the scarce resource, so a 35B/3B
+MoE at 3.5-4.5 bits fits a 32 GB box with ~15 GB to spare for a long-context KV cache (20 KB/token → 32k ctx
+≈ 0.67 GB), where a 27B dense at a higher quant would be ~7× slower for less quality headroom.
 
-`Qwen3.6-35B-A3B-IQ3_S mix, 3.66 bpw, 15.73 GiB, 34.66B params` — coherent on every lane
+## Measured: HP Z820 (2× E5-2665, 16 cores, RTX 5060 Ti)
+
+`Qwen3.6-35B-A3B-IQ3_S` mix, 3.66 bpw, 15.73 GiB, 34.66B params — coherent on every lane
 ("The capital of France is **Paris**.").
 
 | lane | config | decode | prefill | peak VRAM | verdict |
@@ -148,7 +156,7 @@ sequential streaming figure — see the retractions above for why the difference
 
 ### Earlier proxy run (kept for comparison)
 
-`gpt-oss-20b Q4_K_M`, 20.9B total / 3.6B active, 10.81 GiB, measured before the curated weights finished copying:
+`gpt-oss-20b Q4_K_M`, 20.9B total / 3.6B active, 10.81 GiB, measured before the 35B weights finished copying:
 
 | lane | decode | prefill | note |
 |---|---|---|---|
@@ -176,7 +184,7 @@ Same source (2744e48d1), same model, same flags, built both ways on the Z820 its
 | OldIron-AVX floor (`-march=sandybridge`, cross-built on Zen4) | 8.55 / 9.03 t/s | 23.9 ± 0.9 t/s |
 | native (`-march=native`, built on the E5-2665) | 8.74 / 8.83 t/s | ~25 t/s |
 
-Parity within run-to-run spread. Repeated on the curated weights: floor **7.56 ± 0.03** (t=24) / 7.25 ± 0.10 (t=16)
+Parity within run-to-run spread. Repeated on the 35B weights: floor **7.56 ± 0.03** (t=24) / 7.25 ± 0.10 (t=16)
 vs native **7.63 ± 0.05** t/s — ~1% apart. One detached harness pass measured the two back to back:
 floor **7.38 ± 0.02** vs native **7.43 ± 0.05**: **0.7%**, which is the run-to-run spread itself. Three independent passes of the same arms now agree within ~3-6%, so the floor is confirmed free. The two targets differ only in `-maes` (AES-NI), which no inference kernel
 uses, so the cross-built floor is not leaving AVX1 performance on the table and OldIron-AVX can be built anywhere.
@@ -203,8 +211,8 @@ Same OldIron-AVX binary, CPU lane, `-ngl 0 -nopo 1`:
 
 | host | CPU | quant | decode | prefill | effective weight throughput |
 |---|---|---|---|---|---|
-| z820a | 2× E5-2665 @ 2.4 GHz | IQ3_M, 3.66 bpw | 7.45 ± 0.04 t/s (t=24) | 28.5 t/s | **11.96 GB/s** |
-| z820b | 2× E5-2687W @ 3.1 GHz | Q4_K_M, 4.85 bpw | 5.66 ± 0.02 t/s (t=16) | 40.7 t/s | **12.04 GB/s** |
+| Z820 #1 | 2× E5-2665 @ 2.4 GHz | IQ3_M, 3.66 bpw | 7.45 ± 0.04 t/s (t=24) | 28.5 t/s | **11.96 GB/s** |
+| Z820 #2 | 2× E5-2687W @ 3.1 GHz | Q4_K_M, 4.85 bpw | 5.66 ± 0.02 t/s (t=16) | 40.7 t/s | **12.04 GB/s** |
 
 Normalised for quant, the two boxes move **within 0.7% of the same bytes per second** — decode is DRAM-bound, so the
 29% clock advantage buys nothing there, exactly as the memory model predicts. Prefill is compute-bound and *does*
@@ -217,7 +225,7 @@ the only thing that changed the token rate was the weight file.
 
 - **Run the harness detached, in tmux** — the wifi link to the Z820s drops ssh sessions mid-run. tmux is installed
   without root on both Z820s (`scripts/install-tmux-noroot.sh`: `apt-get download` + `dpkg -x` into `~/tmux-local`,
-  wrapper at `~/bin/tmux`); vega has it from apt.
+  wrapper at `~/bin/tmux`); the build host has it from apt.
 - **Under tmux the CLI gets a pty and enters its interactive REPL** after the first turn, hanging until the timeout
   instead of exiting. Every non-interactive CLI arm needs `< /dev/null`. `llama-cli` also writes a **0-byte log**
   under a tmux pty; capture CLI output over a plain ssh pipe (`llama-bench` is fine under tmux).
@@ -275,6 +283,7 @@ are in `NOTICE`.
     isa-audit.sh            the ISA gate (see note above about the pattern)
     stage-to-target.sh      relocatable copy + load check
     fetch-weights.sh        parallel-stream weight transfer (link is wifi/WAN here)
-    acceptance-z820a.sh     the full matrix on z820a
+    acceptance-hp-z820.sh    the full matrix on the Z820
 ```
-On the target: `/home/bob/OldIron/engine/{bin,lib}`, weights under `/mnt/flare/OldIron/weights`.
+On a target machine the engine sits at `<root>/engine/{bin,lib}` with the weight file wherever you keep it — nothing
+under this repository's tree.

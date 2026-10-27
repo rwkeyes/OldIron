@@ -1,5 +1,5 @@
 #!/bin/bash
-# Speculative-decoding A/B on the curated weights (single stream).
+# Speculative-decoding A/B on the 35B weights (single stream).
 # For a 3B-active MoE the verify pass reads the weights ONCE for several tokens, so this is the one remaining
 # lever that cuts bytes-per-token without needing concurrent requests. Payoff depends entirely on acceptance
 # rate, so this measures generated tokens/s with and without the draft, same prompt, temp 0.

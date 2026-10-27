@@ -9,7 +9,7 @@
 # Usage: ./interleave-test.sh <model.gguf>
 # Leaves <model>-il.gguf behind (same size again on disk).
 set -uo pipefail
-TARGET=${TARGET:-z820a-bob}
+TARGET=${TARGET:?set TARGET to the ssh alias of the target ISA host}
 SRC=${1:?usage: interleave-test.sh <model.gguf>}
 IL="${SRC%.gguf}-il.gguf"
 RDIR=/home/bob/OldIron/results

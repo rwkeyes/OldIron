@@ -1,5 +1,5 @@
 #!/bin/bash
-# OldIron-AVX acceptance harness -- runs ON z820a (2x E5-2665 + RTX 5060 Ti).
+# OldIron-AVX acceptance harness -- runs ON the Z820 (2x E5-2665 + RTX 5060 Ti).
 #   lane A  CPU only            (-ngl 0)             : AVX1 Xeon pair = lowest supported CPU
 #   lane B  GPU full            (-ngl 99)            : sm_120 test card
 #   lane C  RTX-3060 8 GB class (-ngl 99 -ncmoe N)   : lowest supported GPU
@@ -19,7 +19,7 @@ NATIVE=${NATIVE:-/home/bob/OldIron/native-src/build-native/bin}
 MODEL=${MODEL:-/mnt/flare/OldIron/weights/Qwen3.6-35B-A3B-IQ3_M.gguf}
 OUT=${OUT:-/home/bob/OldIron/results}
 GPU_BUDGET_MB=${GPU_BUDGET_MB:-7800}
-# Host policy (z820a is shared): never use more than 24 of the 32 logical CPUs, so the OS and other work keep
+# Host policy (this box is shared): never use more than 24 of the 32 logical CPUs, so the OS and other work keep
 # 8; every measurement runs at nice 19. Thread sweeps above MAXT are skipped rather than clamped silently.
 MAXT=${MAXT:-24}
 mkdir -p "$OUT"

@@ -66,7 +66,7 @@ int main(int argc,char**argv){
         printf("  %2d threads: %7.2f GMAC/s aggregate (%5.2f per core)  %6.2f GB/s of weights  [%g]\n",
                th,gmac,gmac/th,gbs,(double)sink);
     }
-    printf("\nprojection for the curated model (3B active params, 4.25 bits => 1.60 GB/token):\n");
+    printf("\nprojection for this weight set (3B active params, 4.25 bits => 1.60 GB/token):\n");
     printf("  compute ceiling = GMAC/s / 3.0 GMAC per token ; memory ceiling = 74.9 GB/s / 1.60 GB per token = %.1f t/s\n",
            74.9/1.60);
     return 0;

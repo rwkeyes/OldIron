@@ -12,7 +12,7 @@ SRC=${SRC:-/home/bob/OldIron/src}
 BUILD=${BUILD:-/home/bob/OldIron/build-pgo}
 PROF=${PROF:-/home/bob/OldIron/pgo-data}
 TRAIN_MODEL=${TRAIN_MODEL:-/mnt/flare/OldIron/weights/Qwen3.6-35B-A3B-Q4_0-otq4.gguf}
-TRAIN_ON=${TRAIN_ON:-z820a-bob}     # training must run on the target ISA
+TRAIN_ON=${TRAIN_ON:?set TRAIN_ON to the ssh alias that has the target ISA}     # training must run on the target ISA
 JOBS=${JOBS:-14}
 CUDA=/usr/local/cuda-13.2
 BASE_FLAGS="-march=sandybridge -mno-avx2 -mno-fma -mno-f16c -mno-bmi2"

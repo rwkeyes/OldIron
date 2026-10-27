@@ -4,7 +4,7 @@
 # "libllama-*-impl.so: cannot open shared object file" until the rpath is rewritten.
 set -uo pipefail
 BUILD=${BUILD:-/home/bob/OldIron/build}
-DST=${DST:-z820a-bob:/home/bob/OldIron/engine}
+DST=${DST:?set DST to <ssh-alias>:/path/to/OldIron/engine}
 TMP=/home/bob/OldIron/stage
 
 rm -rf "$TMP"; mkdir -p "$TMP"

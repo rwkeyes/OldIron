@@ -13,14 +13,14 @@
 #
 # Usage:  ./compiler-sweep.sh oiw4_gemv_v1.c [more.c ...]
 set -uo pipefail
-TARGET=${TARGET:-z820a-bob}
+TARGET=${TARGET:?set TARGET to the ssh alias of the target ISA host}
 RDIR=/home/bob/OldIron/kernels/sweep
 FLAGS=${FLAGS:-"-O3 -march=sandybridge -mavx -msse4.2"}
 REPS=${REPS:-3}
 CORE=${CORE:-0}
 GCC=${GCC:-gcc}
-CLANG=${CLANG:-clang-18}     # z820a ships only versioned clang binaries; plain `clang` does not exist there
-ICX=${ICX:-/opt/intel/oneapi/compiler/2026.2/bin/icx}   # installed on vega only
+CLANG=${CLANG:-clang-18}     # the Z820 ships only versioned clang binaries; plain `clang` does not exist there
+ICX=${ICX:-/opt/intel/oneapi/compiler/2026.2/bin/icx}   # installed on the build host only
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 

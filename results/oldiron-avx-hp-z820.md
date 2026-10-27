@@ -1,6 +1,6 @@
-# OldIron-AVX — results on z820a
+# OldIron-AVX — results on the HP Z820
 
-Provenance: `llama.cpp 2744e48d1` (0.7.0-dev, build 816), built on vega with CUDA 13.2, staged to z820a.
+Provenance: `llama.cpp 2744e48d1` (0.7.0-dev, build 816), cross-built on a Zen4 host with CUDA 13.2, staged to the Z820.
 CPU backend **one AVX1 variant** (`-march=sandybridge -mno-avx2 -mno-fma -mno-f16c -mno-bmi2`);
 CUDA fatbin `sm_86` + `sm_120`. Measurements 2026-10-25, `nice -n 19`.
 
@@ -8,7 +8,8 @@ Host: 2× Xeon **E5-2665** (8C/socket, 2.4 GHz base / 3.1 turbo, **AVX1 only**),
 RTX 5060 Ti 16 GB (15847 MiB) on PCIe 3.0 ×8.
 
 Weights: **Qwen3.6-35B-A3B**, IQ3_S mix, **3.66 bpw, 15.73 GiB, 34.66B params** (`qwen35moe`; 3B active,
-256 experts / 8 routed + 1 shared, 40 layers, 262k ctx, 248k vocab, MTP-trained). sha256 verified in transit.
+256 experts / 8 routed + 1 shared, 40 layers, 262k context, 248k vocab, MTP-trained). sha256 verified in transit.
+Third-party GGUF weights of a public model — not ours, not modified, and not redistributed here.
 
 ## Gates (all passed)
 
